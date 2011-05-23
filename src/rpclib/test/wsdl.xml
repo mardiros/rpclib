@@ -835,11 +835,6 @@
   <wsdl:message name="soap_exceptionResponse">
     <wsdl:part name="soap_exceptionResponse" element="tns:soap_exceptionResponse" />
   </wsdl:message>
-  <wsdl:service name="Application">
-    <wsdl:port name="Application" binding="tns:Application">
-      <soap:address location="http://localhost:9753/?wsdl" />
-    </wsdl:port>
-  </wsdl:service>
   <wsdl:binding name="Application" type="tns:Application">
     <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http" />
     <wsdl:operation name="echo_any">
@@ -1343,4 +1338,34 @@
       <wsdl:output name="soap_exceptionResponse" message="tns:soap_exceptionResponse" />
     </wsdl:operation>
   </wsdl:portType>
+  <wsdl:service name="InteropPrimitive">
+    <wsdl:port name="Application" binding="tns:Application">
+      <soap:address location="http://localhost:9753/?wsdl" />
+    </wsdl:port>
+  </wsdl:service>
+  <wsdl:service name="InteropArray">
+    <wsdl:port name="Application" binding="tns:Application">
+      <soap:address location="http://localhost:9753/?wsdl" />
+    </wsdl:port>
+  </wsdl:service>
+  <wsdl:service name="InteropClass">
+    <wsdl:port name="Application" binding="tns:Application">
+      <soap:address location="http://localhost:9753/?wsdl" />
+    </wsdl:port>
+  </wsdl:service>
+  <wsdl:service name="InteropMisc">
+    <wsdl:port name="Application" binding="tns:Application">
+      <soap:address location="http://localhost:9753/?wsdl" />
+    </wsdl:port>
+  </wsdl:service>
+  <wsdl:service name="InteropServiceWithHeader">
+    <wsdl:port name="Application" binding="tns:Application">
+      <soap:address location="http://localhost:9753/?wsdl" />
+    </wsdl:port>
+  </wsdl:service>
+  <wsdl:service name="InteropException">
+    <wsdl:port name="Application" binding="tns:Application">
+      <soap:address location="http://localhost:9753/?wsdl" />
+    </wsdl:port>
+  </wsdl:service>
 </wsdl:definitions>
