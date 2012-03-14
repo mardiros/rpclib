@@ -22,9 +22,15 @@ logger = logging.getLogger('rpclib.protocol.xml')
 
 from lxml import etree
 
-from rpclib.const import xml_ns as ns
+from rpclib import _bytes_join
+
+from rpclib.const.ansi_color import LIGHT_GREEN
+from rpclib.const.ansi_color import LIGHT_RED
+from rpclib.const.ansi_color import END_COLOR
+
 from rpclib.util.cdict import cdict
 from rpclib.model import ModelBase
+from rpclib.model.binary import ByteArray
 from rpclib.model.binary import Attachment
 from rpclib.model.complex import Array
 from rpclib.model.complex import Iterable
@@ -64,14 +70,20 @@ class XmlObject(ProtocolBase):
     conventions.
 
     :param app: The owner application instance.
-    :param validator: One of (None, 'soft', 'lxml').
+    :param validator: One of (None, 'soft', 'lxml', 'schema',
+                ProtocolBase.SOFT_VALIDATION, XmlObject.SCHEMA_VALIDATION).
     """
 
-    def __init__(self, app=None, validator=None):
+    SCHEMA_VALIDATION = type("schema", (object,), {})
+    mime_type = 'text/xml'
+
+    def __init__(self, app=None, validator=None, xml_declaration=True):
         ProtocolBase.__init__(self, app, validator)
+        self.xml_declaration = xml_declaration
 
         self.serialization_handlers = cdict({
             ModelBase: base_to_parent_element,
+            ByteArray: binary_to_parent_element,
             Attachment: binary_to_parent_element,
             ComplexModelBase: complex_to_parent_element,
             Fault: fault_to_parent_element,
@@ -82,6 +94,7 @@ class XmlObject(ProtocolBase):
 
         self.deserialization_handlers = cdict({
             ModelBase: base_from_element,
+            ByteArray: binary_from_element,
             Attachment: binary_from_element,
             ComplexModelBase: complex_from_element,
             Fault: fault_from_element,
@@ -95,17 +108,22 @@ class XmlObject(ProtocolBase):
 
         self.log_messages = (logger.level == logging.DEBUG)
 
-    def check_validator(self):
-        self.validation_schema = None
-
-        if self.validator == 'lxml':
+    def set_validator(self, validator):
+        if validator in ('lxml', 'schema') or \
+                                    validator is self.SCHEMA_VALIDATION:
             self.validate_document = self.__validate_lxml
+            self.validator = self.SCHEMA_VALIDATION
 
-        elif self.validator in (None, 'soft'):
+        elif validator == 'soft' or validator is self.SOFT_VALIDATION:
+            self.validator = self.SOFT_VALIDATION
+
+        elif validator is None:
             pass
 
         else:
-            raise ValueError(self.validator)
+            raise ValueError(validator)
+
+        self.validation_schema = None
 
     def from_element(self, cls, element):
         handler = self.deserialization_handlers[cls]
@@ -115,41 +133,50 @@ class XmlObject(ProtocolBase):
         handler = self.serialization_handlers[cls]
         handler(self, cls, value, tns, parent_elt, * args, ** kwargs)
 
-    def validate_body(self, ctx, body_document):
-        """Sets ctx.method_request_string and calls :func:`set_method_descriptor`
-        """
+    def validate_body(self, ctx, message):
+        """Sets ctx.method_request_string and calls :func:`generate_contexts`
+        for validation."""
 
+        assert message in (self.REQUEST, self.RESPONSE), message
+
+        line_header = LIGHT_RED + "Error:" + END_COLOR
         try:
-            self.validate_document(body_document)
-            ctx.method_request_string = body_document.tag
-            logger.debug("\033[92mMethod request_string: %r\033[0m" %
-                                                    ctx.method_request_string)
+            self.validate_document(ctx.in_body_doc)
+            if message is self.REQUEST:
+                line_header = LIGHT_GREEN + "Method request string:" + END_COLOR
+            else:
+                line_header = LIGHT_RED + "Response:" + END_COLOR
         finally:
             if self.log_messages:
+                logger.debug("%s %s" % (line_header, ctx.method_request_string))
                 logger.debug(etree.tostring(ctx.in_document, pretty_print=True))
-
-        if ctx.service_class is None: # i.e. if it's a server
-            self.set_method_descriptor(ctx)
 
     def create_in_document(self, ctx, charset=None):
         """Uses the iterable of string fragments in ``ctx.in_string`` to set
-        ``ctx.in_document``"""
+        ``ctx.in_document``."""
 
-        ctx.in_document = etree.fromstring(ctx.in_string, charset)
+        try:
+            ctx.in_document = etree.fromstring(_bytes_join(ctx.in_string))
+        except ValueError:
+            ctx.in_document = etree.fromstring(_bytes_join([s.decode(charset)
+                                                        for s in ctx.in_string]))
 
-        self.validate_body(ctx, ctx.in_document)
+    def decompose_incoming_envelope(self, ctx, message):
+        assert message in (self.REQUEST, self.RESPONSE)
 
         ctx.in_header_doc = None # If you need header support, you should use Soap
-        ctx.in_body_doc = ctx.in_body_doc
+        ctx.in_body_doc = ctx.in_document
+        ctx.method_request_string = ctx.in_body_doc.tag
+        self.validate_body(ctx, message)
 
     def create_out_string(self, ctx, charset=None):
         """Sets an iterable of string fragments to ctx.out_string"""
 
         if charset is None:
-            charset = 'utf8'
+            charset = 'UTF-8'
 
-        ctx.out_string = [etree.tostring(ctx.out_document, xml_declaration=True,
-                                                            encoding=charset)]
+        ctx.out_string = [etree.tostring(ctx.out_document,
+                        xml_declaration=self.xml_declaration, encoding=charset)]
 
     def deserialize(self, ctx, message):
         """Takes a MethodContext instance and a string containing ONE root xml
@@ -160,13 +187,13 @@ class XmlObject(ProtocolBase):
         Not meant to be overridden.
         """
 
-        assert message in ('request', 'response')
+        assert message in (self.REQUEST, self.RESPONSE)
 
         self.event_manager.fire_event('before_deserialize', ctx)
 
-        if message == 'request':
+        if message is self.REQUEST:
             body_class = ctx.descriptor.in_message
-        elif message == 'response':
+        elif message is self.RESPONSE:
             body_class = ctx.descriptor.out_message
 
         # decode method arguments
@@ -176,9 +203,13 @@ class XmlObject(ProtocolBase):
             ctx.in_object = [None] * len(body_class._type_info)
 
         if self.log_messages:
-            logger.debug('\033[91m' + "Response" + '\033[0m')
-            logger.debug(etree.tostring(ctx.out_document,
-                                        xml_declaration=True, pretty_print=True))
+            if message is self.REQUEST:
+                line_header = '%sRequest%s' % (LIGHT_GREEN, END_COLOR)
+            elif message is self.RESPONSE:
+                line_header = '%sResponse%s' % (LIGHT_RED, END_COLOR)
+
+            logger.debug("%s %s" % (line_header, etree.tostring(ctx.out_document,
+                    xml_declaration=self.xml_declaration, pretty_print=True)))
 
         self.event_manager.fire_event('after_deserialize', ctx)
 
@@ -190,14 +221,14 @@ class XmlObject(ProtocolBase):
         Not meant to be overridden.
         """
 
-        assert message in ('request', 'response')
+        assert message in (self.REQUEST, self.RESPONSE)
 
         self.event_manager.fire_event('before_serialize', ctx)
 
         # instantiate the result message
-        if message == 'request':
+        if message is self.REQUEST:
             result_message_class = ctx.descriptor.in_message
-        elif message == 'response':
+        elif message is self.RESPONSE:
             result_message_class = ctx.descriptor.out_message
 
         result_message = result_message_class()
@@ -210,7 +241,7 @@ class XmlObject(ProtocolBase):
             setattr(result_message, attr_name, ctx.out_object[i])
 
         # transform the results into an element
-        tmp_elt = etree.Element('{%s}punk' % ns.soap_env)
+        tmp_elt = etree.Element('punk')
         self.to_parent_element(result_message_class,
                     result_message, self.app.interface.get_tns(), tmp_elt)
         ctx.out_document = tmp_elt[0]

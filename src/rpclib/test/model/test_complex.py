@@ -20,21 +20,20 @@
 import datetime
 import unittest
 
-from rpclib.model.complex import SelfReference
-from rpclib.model.complex import ComplexModel
-from rpclib.model.complex import Array
-from rpclib.model.complex import XMLAttribute
+from lxml import etree
 
+from rpclib.const import xml_ns
+from rpclib.interface.wsdl import Wsdl11
+from rpclib.model.complex import Array
+from rpclib.model.complex import ComplexModel
+from rpclib.model.complex import SelfReference
+from rpclib.model.complex import XmlAttribute
 from rpclib.model.primitive import DateTime
 from rpclib.model.primitive import Float
 from rpclib.model.primitive import Integer
 from rpclib.model.primitive import String
-
-from rpclib.const import xml_ns
-
-from rpclib.interface.wsdl import Wsdl11
-
-from lxml import etree
+from rpclib.protocol.xml import XmlObject
+from rpclib.test import FakeApp
 
 ns_test = 'test_namespace'
 
@@ -46,7 +45,7 @@ class Address(ComplexModel):
     lattitude = Float
     longitude = Float
 
-Address.resolve_namespace(Address,__name__)
+Address.resolve_namespace(Address, __name__)
 
 class Person(ComplexModel):
     name = String
@@ -55,13 +54,13 @@ class Person(ComplexModel):
     addresses = Array(Address)
     titles = Array(String)
 
-Person.resolve_namespace(Person,__name__)
+Person.resolve_namespace(Person, __name__)
 
 class Employee(Person):
     employee_id = Integer
     salary = Float
 
-Employee.resolve_namespace(Employee,__name__)
+Employee.resolve_namespace(Employee, __name__)
 
 class Level2(ComplexModel):
     arg1 = String
@@ -102,11 +101,17 @@ class TestComplexModel(unittest.TestCase):
         a.longitude = 88.0
 
         element = etree.Element('test')
-        Address.to_parent_element(a, ns_test, element)
+        XmlObject().to_parent_element(Address, a, ns_test, element)
+        element = element[0]
+        self.assertEquals(5, len(element.getchildren()))
+
+        a.since = datetime.datetime(year=2011, month=12, day=31)
+        element = etree.Element('test')
+        XmlObject().to_parent_element(Address, a, ns_test, element)
         element = element[0]
         self.assertEquals(6, len(element.getchildren()))
 
-        r = Address.from_xml(element)
+        r = XmlObject().from_element(Address, element)
 
         self.assertEquals(a.street, r.street)
         self.assertEquals(a.city, r.city)
@@ -118,7 +123,7 @@ class TestComplexModel(unittest.TestCase):
     def test_nested_class(self): # FIXME: this test is incomplete
         p = Person()
         element = etree.Element('test')
-        Person.to_parent_element(p, ns_test, element)
+        XmlObject().to_parent_element(Person, p, ns_test, element)
         element = element[0]
 
         self.assertEquals(None, p.name)
@@ -137,19 +142,19 @@ class TestComplexModel(unittest.TestCase):
             peeps.append(a)
 
         type = Array(Person)
-        type.resolve_namespace(type,__name__)
+        type.resolve_namespace(type, __name__)
 
         element = etree.Element('test')
-        type.to_parent_element(peeps, ns_test, element)
+        XmlObject().to_parent_element(type, peeps, ns_test, element)
         element = element[0]
 
         self.assertEquals(4, len(element.getchildren()))
 
-        peeps2 = type.from_xml(element)
+        peeps2 = XmlObject().from_element(type, element)
         for i in range(0, 4):
             self.assertEquals(peeps2[i].name, names[i])
             self.assertEquals(peeps2[i].birthdate,
-                datetime.datetime(1979, 1, 1))
+                              datetime.datetime(1979, 1, 1))
 
     def test_class_nested_array(self):
         peeps = []
@@ -170,14 +175,14 @@ class TestComplexModel(unittest.TestCase):
             peeps.append(a)
 
         type = Array(Person)
-        type.resolve_namespace(type,__name__)
+        type.resolve_namespace(type, __name__)
         element = etree.Element('test')
-        type.to_parent_element(peeps, ns_test, element)
+        XmlObject().to_parent_element(type, peeps, ns_test, element)
         element = element[0]
 
         self.assertEquals(4, len(element.getchildren()))
 
-        peeps2 = type.from_xml(element)
+        peeps2 = XmlObject().from_element(type, element)
         for peep in peeps2:
             self.assertEquals(27, peep.age)
             self.assertEquals(25, len(peep.addresses))
@@ -202,9 +207,9 @@ class TestComplexModel(unittest.TestCase):
             l.level4.append(a)
 
         element = etree.Element('test')
-        Level1.to_parent_element(l, ns_test, element)
+        XmlObject().to_parent_element(Level1, l, ns_test, element)
         element = element[0]
-        l1 = Level1.from_xml(element)
+        l1 = XmlObject().from_element(Level1, element)
 
         self.assertEquals(l1.level2.arg1, l.level2.arg1)
         self.assertEquals(l1.level2.arg2, l.level2.arg2)
@@ -214,8 +219,8 @@ class TestComplexModel(unittest.TestCase):
     def test_customize(self):
         class Base(ComplexModel):
             class Attributes(ComplexModel.Attributes):
-                prop1=3
-                prop2=6
+                prop1 = 3
+                prop2 = 6
 
         Base2 = Base.customize(prop1=4)
 
@@ -249,76 +254,40 @@ class TestComplexModel(unittest.TestCase):
 
 
 class X(ComplexModel):
-    __namespace__='tns'
-    x = Integer(nillable=True,max_occurs='unbounded')
+    __namespace__ = 'tns'
+    x = Integer(nillable=True, max_occurs='unbounded')
 
 class Y(X):
-    __namespace__='tns'
+    __namespace__ = 'tns'
     y = Integer
 
 class TestIncompleteInput(unittest.TestCase):
     def test_x(self):
         x = X()
-        x.x = [1,2]
+        x.x = [1, 2]
         element = etree.Element('test')
-        X.to_parent_element(x, 'tns', element)
+        XmlObject().to_parent_element(X, x, 'tns', element)
         msg = element[0]
-        r = X.from_xml(msg)
-        self.assertEqual(r.x, [1,2])
+        r = XmlObject().from_element(X, msg)
+        self.assertEqual(r.x, [1, 2])
 
     def test_y_fromxml(self):
         x = X()
-        x.x = [1,2]
+        x.x = [1, 2]
         element = etree.Element('test')
-        X.to_parent_element(x, 'tns', element)
+        XmlObject().to_parent_element(X, x, 'tns', element)
         msg = element[0]
-        r = Y.from_xml(msg)
-        self.assertEqual(r.x, [1,2])
+        r = XmlObject().from_element(Y, msg)
+        self.assertEqual(r.x, [1, 2])
 
     def test_y_toxml(self):
         y = Y()
-        y.x = [1,2]
+        y.x = [1, 2]
         y.y = 38
         element = etree.Element('test')
-        Y.to_parent_element(y, 'tns', element)
+        XmlObject().to_parent_element(Y, y, 'tns', element)
         msg = element[0]
-        r = Y.from_xml(msg)
-
-    def test_from_string(self):
-
-        from rpclib.util.model_utils import ComplexModelConverter
-
-        class Simple(ComplexModel):
-            number = Integer
-            text = String
-
-        class NotSoSimple(ComplexModel):
-
-            number_1 = Integer
-            number_2 = Integer
-            body = Simple
-
-
-        nss = NotSoSimple()
-        nss.number_1 = 100
-        nss.number_2 = 1000
-
-        nss.body = Simple()
-        nss.body.number = 1
-        nss.body.text = "Some Text"
-
-        cmc = ComplexModelConverter(nss, "testfromstring", include_ns=False)
-        element = cmc.to_etree()
-
-        assert nss.body.number == 1
-        assert nss.number_1 == 100
-
-        nss_from_xml = NotSoSimple.from_string(cmc.to_xml())
-
-        assert nss_from_xml.body.number == 1
-        assert nss_from_xml.body.text == "Some Text"
-        assert nss_from_xml.number_1 == 100
-        assert nss_from_xml.number_2 == 1000
+        r = XmlObject().from_element(Y, msg)
 
 class SisMsg(ComplexModel):
     """Container with metadata for Jiva integration messages
@@ -341,32 +310,80 @@ class EncExtractSisMsg(SisMsg):
     """Message indicating a Jiva episode needs to be extracted.
 
     Desirable API: Will it work?
-    >>> msg = EncExtractSisMsg.from_xml(raw_xml)
+    >>> msg = XmlObject().from_element(EncExtractSisMsg, raw_xml)
     >>> msg.body.mbr_idn
     """
     body = EncExtractXs
 
 
-
-class Parameter(ComplexModel):
-    __namespace__ = ns_test
-    __extends__ = String
-    name = XMLAttribute('%s:string' % xml_ns.const_prefmap[xml_ns.xsd])
-
-Parameter.resolve_namespace(Parameter, __name__)
-
-
-
 class TestXmlAttribute(unittest.TestCase):
-
     def test_add_to_schema(self):
-        schema = Wsdl11(parent=None, services=[], tns=ns_test, name='TestXmlAttribute')
-        Parameter.add_to_schema(schema)
-        type_def = schema.get_schema_info('tns').types[Parameter.get_type_name()]
+        class CM(ComplexModel):
+            __namespace__ = 'ns'
+
+            i = Integer
+            s = String
+            a = XmlAttribute(String)
+
+        app = FakeApp()
+        schema = Wsdl11(app)
+        schema.add(CM)
+
+        pref = CM.get_namespace_prefix(schema)
+        type_def = schema.get_schema_info(pref).types[CM.get_type_name()]
+        print etree.tostring(type_def, pretty_print=True)
         attribute_def = type_def.find('{%s}attribute' % xml_ns.xsd)
+
         self.assertIsNotNone(attribute_def)
-        self.assertEqual(attribute_def.get('name'), 'name')
-        self.assertEqual(attribute_def.get('type'), Parameter.name._typ)
+        self.assertEqual(attribute_def.get('name'), 'a')
+        self.assertEqual(attribute_def.get('type'), CM.a._typ.get_type_name_ns(schema))
+
+
+class TestSimpleTypeRestrictions(unittest.TestCase):
+    def test_simple_type_info(self):
+        class CM(ComplexModel):
+            i = Integer
+            s = String
+
+        class CCM(ComplexModel):
+            c = CM
+            i = Integer
+            s = String
+
+        sti = CCM.get_simple_type_info(CCM)
+        assert "i" in sti
+        assert sti["i"].path == ('i',)
+        assert sti["i"].type is Integer
+        assert sti["s"].parent is None
+        assert "s" in sti
+        assert sti["s"].path == ('s',)
+        assert sti["s"].type is String
+        assert sti["s"].parent is None
+
+        assert "c_i" in sti
+        assert sti["c_i"].path == ('c','i')
+        assert sti["c_i"].type is Integer
+        assert sti["c_i"].parent is CCM
+        assert "c_s" in sti
+        assert sti["c_s"].path == ('c','s')
+        assert sti["c_s"].type is String
+        assert sti["c_s"].parent is CCM
+
+    def test_simple_type_info_conflicts(self):
+        class CM(ComplexModel):
+            i = Integer
+            s = String
+
+        class CCM(ComplexModel):
+            c = CM
+            c_i = Float
+
+        try:
+            CCM.get_simple_type_info(CCM)
+        except ValueError:
+            pass
+        else:
+            raise Exception("must fail")
 
 if __name__ == '__main__':
     unittest.main()

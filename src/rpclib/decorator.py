@@ -29,7 +29,10 @@ decorator is a simple example of this.
 
 from rpclib._base import MethodDescriptor
 from rpclib.model.complex import ComplexModel, ComplexModelMeta, TypeInfo
+
 from rpclib.const.xml_ns import DEFAULT_NS
+from rpclib.const.suffix import RESPONSE_SUFFIX
+from rpclib.const.suffix import RESULT_SUFFIX
 
 def _produce_input_message(f, params, _in_message_name, _in_variable_names, no_ctx):
     if no_ctx is True:
@@ -78,7 +81,7 @@ def _validate_body_style(kparams):
     else:
         raise ValueError("soap_body_style must be one of ('rpc', 'document')")
 
-    assert _body_style in ('wrapped','bare')
+    assert _body_style in ('wrapped', 'bare')
 
     return _body_style
 
@@ -91,12 +94,13 @@ def _produce_output_message(f, func_name, kparams):
     _returns = kparams.get('_returns')
     _body_style = _validate_body_style(kparams)
 
-    _out_message_name = kparams.get('_out_message', '%sResponse' % func_name)
+    _out_message_name = kparams.get('_out_message', '%s%s' %
+                                                    (func_name, RESPONSE_SUFFIX))
     out_params = TypeInfo()
 
     if _returns and _body_style == 'wrapped':
         if isinstance(_returns, (list, tuple)):
-            default_names = ['%sResult%d' % (func_name, i) for i in
+            default_names = ['%s%s%d' % (func_name, RESULT_SUFFIX, i) for i in
                                                            range(len(_returns))]
 
             _out_variable_names = kparams.get('_out_variable_names',
@@ -104,12 +108,12 @@ def _produce_output_message(f, func_name, kparams):
 
             assert (len(_returns) == len(_out_variable_names))
 
-            var_pair = zip(_out_variable_names,_returns)
+            var_pair = zip(_out_variable_names, _returns)
             out_params = TypeInfo(var_pair)
 
         else:
             _out_variable_name = kparams.get('_out_variable_name',
-                                                       '%sResult' % func_name)
+                                           '%s%s' % (func_name, RESULT_SUFFIX))
 
             out_params[_out_variable_name] = _returns
 
@@ -156,11 +160,13 @@ def srpc(*params, **kparams):
             _no_ctx = kparams.get('_no_ctx', True)
             _udp = kparams.get('_udp', None)
 
+            _faults = None
             if ('_faults' in kparams) and ('_throws' in kparams):
                 raise ValueError("only one of '_throws ' and '_faults' arguments"
                                  "should be given, as they're synonyms.")
-            _faults = kparams.get('_faults', None)
-            if _faults is None:
+            elif '_faults' in kparams:
+                _faults = kparams.get('_faults', None)
+            elif '_throws' in kparams:
                 _faults = kparams.get('_throws', None)
 
             _in_message_name = kparams.get('_in_message_name', function_name)
@@ -175,7 +181,8 @@ def srpc(*params, **kparams):
             retval = MethodDescriptor(f,
                     in_message, out_message, doc, _is_callback, _is_async,
                     _mtom, _in_header, _out_header, _faults,
-                    port_type=_port_type, no_ctx=_no_ctx, udp=_udp)
+                    port_type=_port_type, no_ctx=_no_ctx, udp=_udp,
+                    class_key=function_name)
 
             return retval
 

@@ -1,4 +1,3 @@
-
 Warning! This is from rpclib's unstable development branch.
 
 About
@@ -11,7 +10,7 @@ transports.
 
 Rpclib comes with the implementations of popular transport, protocol and
 interface document standards along with an easy-to-use API that lets you
-build on and extend existing functionality.
+build on existing functionality.
 
 Rpclib currently supports the WSDL 1.1 interface description standard,
 along with SOAP 1.1 and the rest-minus-the-verbs HttpRpc protocols which can be
@@ -58,6 +57,10 @@ that Rpclib supports:
   :class:`rpclib.client.zeromq.ZeroMQClient` and
   :class:`rpclib.server.zeromq.ZeroMQServer`.
 * A Wsgi server of your choice to wrap :class:`rpclib.server.wsgi.WsgiApplication`.
+* `Werkzeug <http://werkzeug.pocoo.org/>` is needed for :class:`rpclib.protocol.http.HttpRpc`.
+
+You are advised to add these as requirements to your own projects, as these are
+only "soft" dependencies of rpclib, thus not handled in its setup script.
 
 Installing
 ==========
@@ -94,7 +97,7 @@ That's mostly because rpclib is the continuation of soaplib, but also
 because soap is an important part of rpclib.
 
 If you wish to contribute to rpclib's development, create a personal fork
-on GitHub.  When you are ready to push to the mainstream repository,
+on GitHub.  When you are ready to push to the upstream repository,
 submit a pull request to bring your work to the attention of the core
 committers. They will respond to review your patch and act accordingly.
 

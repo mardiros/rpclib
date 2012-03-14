@@ -23,10 +23,9 @@ logger = logging.getLogger(__name__)
 from lxml import etree
 
 from rpclib.error import Fault
-from rpclib.model.complex import XMLAttribute # FIXME: Rename this to XmlAttribute
-
-from _base import nillable_value
-from _base import nillable_element
+from rpclib.model.complex import XmlAttribute
+from rpclib.protocol.xml.model._base import nillable_value
+from rpclib.protocol.xml.model._base import nillable_element
 
 
 def get_members_etree(prot, cls, inst, parent):
@@ -40,7 +39,7 @@ def get_members_etree(prot, cls, inst, parent):
         except: # to guard against sqlalchemy throwing NoSuchColumnError
             subvalue = None
 
-        if isinstance(v, XMLAttribute):
+        if isinstance(v, XmlAttribute):
             v.marshall(k, subvalue, parent)
             continue
 
@@ -60,9 +59,6 @@ def complex_to_parent_element(prot, cls, value, tns, parent_elt, name=None):
         name = cls.get_type_name()
 
     element = etree.SubElement(parent_elt, "{%s}%s" % (tns, name))
-
-    # here, we try our best to match the incoming value with the class
-    # definition in cls._type_map.
     inst = cls.get_serialization_instance(value)
 
     get_members_etree(prot, cls, inst, element)
@@ -87,34 +83,39 @@ def complex_from_element(prot, cls, element):
             continue
 
         key = c.tag.split('}')[-1]
-        freq = frequencies.get(key,0)
+        freq = frequencies.get(key, 0)
         freq+=1
         frequencies[key] = freq
-
 
         member = flat_type_info.get(key, None)
         if member is None:
             continue
 
-        if isinstance(member, XMLAttribute):
-            value = element.get(key)
+
+        mo = member.Attributes.max_occurs
+        if mo == 'unbounded' or mo > 1:
+            value = getattr(inst, key, None)
+            if value is None:
+                value = []
+
+            value.append(prot.from_element(member, c))
 
         else:
-            mo = member.Attributes.max_occurs
-            if mo == 'unbounded' or mo > 1:
-                value = getattr(inst, key, None)
-                if value is None:
-                    value = []
-
-                value.append(prot.from_element(member, c))
-
-            else:
-                value = prot.from_element(member, c)
+            value = prot.from_element(member, c)
 
         setattr(inst, key, value)
 
-    if prot.validator == 'soft':
-        for key,c in flat_type_info.items():
+    for key in element.attrib:
+        member = flat_type_info.get(key, None)
+        if member is None:
+            continue
+
+        value = member._typ.from_string(element.attrib[key])
+
+        setattr(inst, key, value)
+
+    if prot.validator is prot.SOFT_VALIDATION:
+        for key, c in flat_type_info.items():
             val = frequencies.get(key, 0)
             if (        val < c.Attributes.min_occurs
                     or  (     c.Attributes.max_occurs != 'unbounded'

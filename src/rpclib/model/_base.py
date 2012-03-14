@@ -23,6 +23,7 @@ import rpclib.const.xml_ns
 defining models.
 """
 
+
 def nillable_dict(func):
     """Decorator that retuns empty dictionary if input is None"""
 
@@ -52,6 +53,7 @@ def nillable_iterable(func):
         else:
             return func(cls, string)
     return wrapper
+
 
 class ModelBase(object):
     """The base class for type markers. It defines the model interface for the
@@ -92,8 +94,13 @@ class ModelBase(object):
         doc = ""
         """The documentation for the given type."""
 
+        appinfo = None
+        """Any object that carries app-specific info."""
+
     class Empty(object):
         pass
+
+    _force_own_namespace = None
 
     @staticmethod
     def is_default(cls):
@@ -135,7 +142,7 @@ class ModelBase(object):
 
         if cls.__namespace__ is None:
             cls.__namespace__ = cls.__module__
-
+ 
     @classmethod
     def get_type_name(cls):
         """Returns the class name unless the __type_name__ attribute is defined.
@@ -234,7 +241,9 @@ class ModelBase(object):
         """Override this method to do your own input validation on the native
         value. This is called after converting the incoming string to the
         native python value."""
+
         return True
+
 
 class Null(ModelBase):
     @classmethod
@@ -244,6 +253,7 @@ class Null(ModelBase):
     @classmethod
     def from_string(cls, value):
         return None
+
 
 class SimpleModel(ModelBase):
     """The base class for primitives."""
@@ -257,7 +267,7 @@ class SimpleModel(ModelBase):
         values = set()
         """The set of possible values for this type."""
 
-    def __new__(cls, ** kwargs):
+    def __new__(cls, **kwargs):
         """Overriden so that any attempt to instantiate a primitive will return
         a customized class instead of an instance.
 
@@ -267,7 +277,11 @@ class SimpleModel(ModelBase):
         retval = cls.customize( ** kwargs)
 
         if not retval.is_default(retval):
-            retval.__base_type__ = cls
+            if hasattr(cls, '_is_clone_of'):
+                retval.__base_type__ = cls._is_clone_of
+            else:
+                retval.__base_type__ = cls
+
             retval.__type_name__ = kwargs.get("type_name", ModelBase.Empty)
 
         return retval
@@ -278,7 +292,7 @@ class SimpleModel(ModelBase):
 
     @staticmethod
     def validate_string(cls, value):
-        return (    ModelBase.validate_string(cls, value)
+        return (     ModelBase.validate_string(cls, value)
                 and (len(cls.Attributes.values) == 0 or
                                                 value in cls.Attributes.values)
             )

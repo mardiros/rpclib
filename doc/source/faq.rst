@@ -8,19 +8,24 @@ Frequently asked questions about rpclib and related libraries.
 Does rpclib support the SOAP 1.2 standard?
 ==========================================
 
-Sort answer: No. Long answer: Nope.
+**Short answer:** No.
+
+**Long answer:** Nope.
 
 Patches are welcome.
 
 How do I implement a predefined WSDL?
 =====================================
 
-This is not a strength of rpclib, which is more oriented toward implementing
-services from scratch. It does not have any functionality to parse an existing
-WSDL document to produce the necessary Python classes and method stubs.
+**Short answer:** By hand.
+
+**Long answer:** This is not a strength of rpclib, which is more oriented toward
+implementing services from scratch. It does not have any functionality to parse
+an existing WSDL document to produce the necessary Python classes and method
+stubs.
 
 Patches are welcome. You can start by adapting the WSDL parser from
-`RSL <http://rsl.sf.net>`.
+`RSL <http://rsl.sf.net>`_.
 
 Is it possible to use other decorators with @rpc/@srpc?
 =======================================================
@@ -73,7 +78,61 @@ PS: The next faq entry is also probably relevant to you.
 How do I alter the behaviour of a user method without using decorators?
 =======================================================================
 
-``ctx.descriptor.function`` contains the handle to the original function. You
+``ctx.function`` contains the handle to the original function. You
 can set that attribute to arbitrary callables to prevent the original user
-method from running.
+method from running. This property is initiallized from
+``ctx.descriptor.function`` every time a new context is initialized.
 
+If for some reason you need to alter the ``ctx.descriptor.function``,
+you can call :func:`ctx.descriptor.reset_function()` to restore it to its
+original value.
+
+Also consider thread-safety issues when altering global state.
+
+How do I use variable names that are also python keywords?
+==========================================================
+
+Due to restrictions of the python language, you can't do this:
+
+    class SomeClass(ComplexModel):
+        and = String
+        or = Integer
+        import = Datetime
+
+The workaround is as follows:
+
+    class SomeClass(ComplexModel):
+        _type_info = {
+            'and': String
+            'or': Integer
+            'import': Datetime
+        }
+
+You also can't do this:
+
+    @rpc(String, String, String, _returns=String)
+    def f(ctx, from, import):
+        return '1234'
+
+The workaround is as follows:
+
+    @rpc(String, String, String, _returns=String,
+        _in_variable_names={'_from': 'from',
+            '_import': 'import'},
+        _out_variable_name="return"
+    def f(ctx, _from, _import):
+        return '1234'
+
+See here: https://github.com/arskom/rpclib/blob/rpclib-2.5.0-beta/src/rpclib/test/test_service.py#L114
+
+How does rpclib behave in a multi-threaded environment?
+=======================================================
+
+Rpclib code is re-entrant, thus mostly thread safe. (A notable exception to
+this rule is the Interface clasess which cache the document string once
+generated.) Whatever global state that is accessed is initialized and frozen
+(by convention) before any rpc processing is performed.
+
+The transport implementations (i.e. the code in client and server packages) or
+the user code are responsible for assuring thread-safety when accessing the
+out-of-thread data. No other parts of rpclib should be made aware of threads.

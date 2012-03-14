@@ -19,9 +19,9 @@
 
 from rpclib.error import ValidationError
 
-from _base import base_to_parent_element
-from _base import nillable_element
-from _base import nillable_value
+from rpclib.protocol.xml.model._base import base_to_parent_element
+from rpclib.protocol.xml.model._base import nillable_element
+from rpclib.protocol.xml.model._base import nillable_value
 
 @nillable_value
 def enum_to_parent_element(prot, cls, value, tns, parent_elt, name='retval'):
@@ -31,6 +31,7 @@ def enum_to_parent_element(prot, cls, value, tns, parent_elt, name='retval'):
 
 @nillable_element
 def enum_from_element(prot, cls, element):
-    if prot.validator == 'soft' and not (cls.validate_string(cls, element.text)):
+    if prot.validator is prot.SOFT_VALIDATION and not (
+                                        cls.validate_string(cls, element.text)):
         raise ValidationError(element.text)
     return getattr(cls, element.text)

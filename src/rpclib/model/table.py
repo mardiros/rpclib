@@ -48,6 +48,7 @@ from rpclib.model import primitive
 from rpclib.model import binary
 from rpclib.model import complex
 
+
 _type_map = {
     sqlalchemy.Text: primitive.String,
     sqlalchemy.String: primitive.String,
@@ -60,10 +61,15 @@ _type_map = {
     sqlalchemy.Integer: primitive.Integer,
     sqlalchemy.SmallInteger: primitive.Integer,
 
+    sqlalchemy.Binary: binary.ByteArray,
     sqlalchemy.LargeBinary: binary.ByteArray,
     sqlalchemy.Boolean: primitive.Boolean,
     sqlalchemy.DateTime: primitive.DateTime,
+    sqlalchemy.Date: primitive.Date,
+    sqlalchemy.Time: primitive.Time,
+
     sqlalchemy.orm.relation: complex.Array,
+
     UUID: primitive.String
 }
 
@@ -94,7 +100,7 @@ def _is_interesting(k, v):
         return True
 
     if isinstance(v, RelationshipProperty):
-        if getattr(v.argument,'_type_info', None) is None:
+        if getattr(v.argument, '_type_info', None) is None:
             logger.warning("the argument to relationship should be a reference "
                            "to the real column, not a string.")
             return False
@@ -118,8 +124,8 @@ class TableModelMeta(DeclarativeMeta, ComplexModelMeta):
 
             # mixin inheritance
             for b in cls_bases:
-                for k,v in vars(b).items():
-                    if _is_interesting(k,v):
+                for k, v in vars(b).items():
+                    if _is_interesting(k, v):
                         _type_info[k] = _process_item(v)
 
             # same table inheritance
@@ -138,7 +144,7 @@ class TableModelMeta(DeclarativeMeta, ComplexModelMeta):
 
             # own attributes
             for k, v in cls_dict.items():
-                if _is_interesting(k,v):
+                if _is_interesting(k, v):
                     _type_info[k] = _process_item(v)
 
         return DeclarativeMeta.__new__(cls, cls_name, cls_bases, cls_dict)

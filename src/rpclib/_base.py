@@ -20,6 +20,8 @@
 import logging
 logger = logging.getLogger(__name__)
 
+from time import time
+
 from collections import deque
 
 from rpclib.const.xml_ns import DEFAULT_NS
@@ -54,6 +56,19 @@ class MethodContext(object):
             return self.descriptor.name
 
     def __init__(self, app):
+        # metadata
+        self.call_start = time()
+        """The time the rpc operation was initiated in seconds-since-epoch
+        format.
+
+        Useful for benchmarking purposes."""
+
+        self.call_end = None
+        """The time the rpc operation was completed in seconds-since-epoch
+        format.
+
+        Useful for benchmarking purposes."""
+
         self.app = app
         """The parent application."""
 
@@ -72,8 +87,7 @@ class MethodContext(object):
         self.method_request_string = None
         """This is used as a basis on deciding which native method to call."""
 
-        self.descriptor = None
-        """The MethodDescriptor object representing the current method."""
+        self.__descriptor = None
 
         #
         # The following are set based on the value of the descriptor.
@@ -146,10 +160,10 @@ class MethodContext(object):
         """
         self.out_header = None
         """Native python object set by the function in the service definition
-        class"""
+        class."""
         self.out_error = None
         """Native exception thrown by the function in the service definition
-        class"""
+        class."""
 
         # parsed
         self.out_body_doc = None
@@ -163,13 +177,29 @@ class MethodContext(object):
         self.out_string = None
         """Outgoing bytestream (i.e. an iterable of strings)"""
 
+        self.function = None
+        """The callable of the user code."""
+
         self.frozen = True
-        """when this is set, no new attribute can be added to this class
+        """When this is set, no new attribute can be added to this class
         instance. This is mostly for internal use.
         """
 
+        self.app.event_manager.fire_event("method_context_constructed", self)
+
+    def get_descriptor(self):
+        return self.__descriptor
+
+    def set_descriptor(self, descriptor):
+        self.__descriptor = descriptor
+        self.function = descriptor.function
+
+    descriptor = property(get_descriptor, set_descriptor)
+    """The MethodDescriptor object representing the current method. This object
+    should not be changed by the user code."""
+
     def __setattr__(self, k, v):
-        if self.frozen == False or k in self.__dict__:
+        if self.frozen == False or k in self.__dict__ or k == 'descriptor':
             object.__setattr__(self, k, v)
         else:
             raise ValueError("use the udc member for storing arbitrary data "
@@ -180,8 +210,7 @@ class MethodContext(object):
         for k, v in self.__dict__.items():
             if isinstance(v, dict):
                 ret = deque(['{'])
-                items = v.items()
-                items.sort()
+                items = sorted(v.items())
                 for k2, v2 in items:
                     ret.append('\t\t%r: %r,' % (k2, v2))
                 ret.append('\t}')
@@ -194,6 +223,9 @@ class MethodContext(object):
 
         return ''.join((self.__class__.__name__, '(', ', '.join(retval), ')'))
 
+    def __del__(self):
+        self.call_end = time()
+        self.app.event_manager.fire_event("method_context_destroyed", self)
 
 class MethodDescriptor(object):
     '''This class represents the method signature of a soap method,
@@ -203,9 +235,11 @@ class MethodDescriptor(object):
     def __init__(self, function, in_message, out_message, doc,
                  is_callback=False, is_async=False, mtom=False, in_header=None,
                  out_header=None, faults=None,
-                 port_type=None, no_ctx=False, udp=None):
+                 port_type=None, no_ctx=False, udp=None, class_key=None):
 
-        self.function = function
+        self.__real_function = function
+        self.reset_function()
+
         """The original function object to be called when the method is remotely
         invoked."""
 
@@ -246,6 +280,9 @@ class MethodDescriptor(object):
         """Short for "User-Defined Properties", it's your own playground. You
         can use it to store custom metadata about the method."""
 
+        self.class_key = class_key
+        """The name the function is accessible from in the class."""
+
     @property
     def name(self):
         """The public name of the function. Equals to the type_name of the
@@ -260,6 +297,12 @@ class MethodDescriptor(object):
 
         return '{%s}%s' % (
             self.in_message.get_namespace(), self.in_message.get_type_name())
+
+    def reset_function(self, val=None):
+        if val != None:
+            self.__real_function = val
+        self.function = self.__real_function
+
 
 class EventManager(object):
     """The event manager for all rpclib events. The events are stored in an

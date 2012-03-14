@@ -42,10 +42,13 @@ from rpclib.model.primitive import Integer
 from rpclib.model.primitive import Decimal
 from rpclib.model.primitive import DateTime
 from rpclib.model.complex import ComplexModel
+from rpclib.model.complex import XmlAttribute
 
 from rpclib.util.xml import get_schema_documents
 from rpclib.util.xml import get_object_as_xml
+from rpclib.util.xml import get_xml_as_object
 from rpclib.util.xml import get_validation_schema
+
 
 class Punk(ComplexModel):
     __namespace__ = 'some_namespace'
@@ -62,24 +65,27 @@ class Foo(ComplexModel):
     b = Integer
     c = Decimal
     d = DateTime
+    e = XmlAttribute(Integer)
 
 
 docs = get_schema_documents([Punk, Foo])
 pprint(docs)
-print
+print()
 
 # the default ns prefix is always tns
-print "the default namespace %r:" % docs['tns'].attrib['targetNamespace']
-print etree.tostring(docs['tns'], pretty_print=True)
-print
+print("the default namespace %r:" % docs['tns'].attrib['targetNamespace'])
+print(etree.tostring(docs['tns'], pretty_print=True))
+print()
 
 # Namespace prefixes are assigned like s0, s1, s2, etc...
-print "the other namespace %r:" % docs['s0'].attrib['targetNamespace']
-print etree.tostring(docs['s0'], pretty_print=True)
+print("the other namespace %r:" % docs['s0'].attrib['targetNamespace'])
+print(etree.tostring(docs['s0'], pretty_print=True))
 
 
-foo = Foo(a='a', b=1, c=3.4, d=datetime(2011,02,20))
-print etree.tostring(get_object_as_xml(foo),pretty_print=True)
+foo = Foo(a='a', b=1, c=3.4, d=datetime(2011,02,20),e=5)
+doc = get_object_as_xml(foo)
+print(etree.tostring(doc, pretty_print=True))
+print(get_xml_as_object(Foo, doc))
 
 # See http://lxml.de/validation.html to see what this could be used for.
-print get_validation_schema([Punk, Foo])
+print(get_validation_schema([Punk, Foo]))

@@ -2,6 +2,84 @@
 Changelog
 =========
 
+rpclib-2.7.0-beta
+-----------------
+ * Add support for non-chunked encoding to Wsgi transport.
+ * Add support for Html Microformats.
+ * Add ``function`` property to MethodContext that is re-initialized from
+   ``descriptor.function`` for each new request. Stay away from
+   ``descriptor.function`` unless you understand the consequences!..
+ * String and Unicode models are now separate objects with well-defined
+   (de)serialization behaviour.
+ * Argument order change in Application ctor:
+
+       interface, in_protocol, out_protocol
+
+   becomes:
+
+       in_protocol, out_protocol, interface
+
+   See here: https://github.com/arskom/rpclib/commit/45f5af70aa826640008222bda96299d51c9df980#diff-1
+
+ * Full changelog:
+     * https://github.com/arskom/rpclib/pull/123
+     * https://github.com/arskom/rpclib/pull/124
+     * https://github.com/arskom/rpclib/pull/125
+
+rpclib-2.6.1-beta
+-----------------
+ * Fix (for real this time) the race condition in wsgi server's wsdl handler.
+
+rpclib-2.6.0-beta
+-----------------
+ * HttpRpc now parses POST/PUT/PATCH bodies, can accept file uploads.
+   Uses werkzeug to do that, which is now a soft dependency.
+ * ByteArray now child of SimpleModel. It's now possible to customize it simply
+   by calling it.
+ * Fix race condition in wsgi server wsdl request.
+ * Full change log: https://github.com/arskom/rpclib/pull/122
+
+rpclib-2.5.2-beta
+-----------------
+ * Misc. fixes.
+ * Full change log: https://github.com/arskom/rpclib/pull/118
+
+rpclib-2.5.1-beta
+-----------------
+ * Switched to magic cookie constants instead of strings in protocol logic.
+ * check_validator -> set_validator in ProtocolBase
+ * Started parsing Http headers in HttpRpc protocol.
+ * HttpRpc now properly validates nested value frequencies.
+ * HttpRpc now works with arrays of simple types as well.
+ * Full change log: https://github.com/arskom/rpclib/pull/117
+                    https://github.com/arskom/rpclib/pull/116
+
+rpclib-2.5.0-beta
+-----------------
+ * Implemented fanout support for transports and protocols that can handle 
+   that.
+ * Implemented a helper module that generates a Soap/Wsdl 1.1 application in
+   ``rpclib.util.simple``
+ * Some work towards supporting Python3 using ``2to3``. See issue #113.
+ * ``ctx.descriptor.reset_function`` implemented. It's now safe to fiddle
+   with that value in event handlers.
+ * Incorporated a cleaned-up version of the Django wrapper: https://gist.github.com/1316025
+ * Fix most of the tests that fail due to api changes.
+ * Fix Http soap client.
+ * Full change log: https://github.com/arskom/rpclib/pull/115
+
+rpclib-2.4.7-beta
+-----------------
+ * Made color in logs optional
+ * Fixed ByteArray serializer
+
+rpclib-2.4.5-beta
+-----------------
+ * Time primitive was implemented.
+ * Fix for multiple ports was integrated.
+ * Added http cookie authentication example with suds.
+ * Full change log: https://github.com/arskom/rpclib/pull/109
+
 rpclib-2.4.3-beta
 -----------------
  * Many issues with 'soft' validation was fixed.
@@ -117,7 +195,7 @@ rpclib-2.0.10-alpha
  * Fixed the case where changing the _in_message tag name of the method
    prevented it from being called.
  * SOAP/WSDL: Added support for multiple {in,out}_header objects.
- * Correct some bugs with the XMLAttribute model
+ * Fix some XMLAttribute bugs.
 
 rpclib-2.0.9-alpha
 ------------------
